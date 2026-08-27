@@ -28,22 +28,18 @@ jobs:
         with:
           gradle-version: '9.3.1'
 
-      - name: Prepare Project Files
+      - name: Prepare Workspace & Extract
         run: |
-          # 1. Unpack ZIP file
-          for f in $(find . -maxdepth 2 -type f -name "*.zip" -o -name "*.ZIP"); do
-            unzip -o "$f" || true
-          done
+          # 1. Unzip project archive
+          find . -maxdepth 2 -type f -name "*.zip" -exec unzip -o {} \;
 
-          # 2. Relocate nested files to root
-          if [ ! -f "settings.gradle.kts" ]; then
-            SUB_DIR=$(find . -mindepth 2 -name "settings.gradle.kts" -exec dirname {} \; | head -n 1)
-            if [ -n "$SUB_DIR" ]; then
-              cp -rn "$SUB_DIR"/* . || true
-            fi
+          # 2. Relocate nested files to root if needed
+          TARGET_DIR=$(find . -name "settings.gradle*" -exec dirname {} \; | head -n 1)
+          if [ -n "$TARGET_DIR" ] && [ "$TARGET_DIR" != "." ]; then
+            cp -rn "$TARGET_DIR"/* . || true
           fi
 
-          # 3. Create required config files and keystores
+          # 3. Create required configs and debug keystore
           touch .env
           mkdir -p ~/.android
           keytool -genkey -v -keystore ./debug.keystore -storepass android -alias androiddebugkey -keypass android -keyalg RSA -keysize 2048 -validity 10000 -dname "CN=Android Debug,O=Android,C=US" || true
