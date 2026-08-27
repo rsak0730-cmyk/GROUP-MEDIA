@@ -8,8 +8,6 @@ on:
 jobs:
   build:
     runs-on: ubuntu-latest
-    env:
-      _JAVA_OPTIONS: "-Djava.awt.headless=true"
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -19,20 +17,17 @@ jobs:
         with:
           distribution: temurin
           java-version: 17
+          cache: gradle
 
-      - name: Setup Gradle
-        uses: gradle/actions/setup-gradle@v3
-
-      - name: Generate Debug Keystore
-        run: |
-          mkdir -p ~/.android
-          keytool -genkey -v -keystore ~/.android/debug.keystore -storepass android -alias androiddebugkey -keypass android -keyalg RSA -keysize 2048 -validity 10000 -dname "CN=Android Debug,O=Android,C=US"
+      - name: Make gradlew executable
+        run: chmod +x gradlew
 
       - name: Build with Gradle
-        run: gradle assembleDebug --stacktrace --no-daemon -Djava.awt.headless=true
+        run: ./gradlew assembleDebug --stacktrace --no-daemon
 
       - name: Upload APK
         uses: actions/upload-artifact@v4
         with:
           name: app-debug
-          path: app/build/outputs/apk/debug
+          path: app/build/outputs/apk/debug/*.apk
+          if-no-files-found: error
