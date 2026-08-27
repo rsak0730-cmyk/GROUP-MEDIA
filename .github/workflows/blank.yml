@@ -1,4 +1,5 @@
-name: Build APK from ZIP
+
+name: Build APK
 
 on:
   push:
@@ -9,15 +10,15 @@ jobs:
   build:
     runs-on: ubuntu-latest
     steps:
-      - name: Checkout Repository
+      - name: Checkout Code
         uses: actions/checkout@v4
 
-      - name: Extract Project Files
+      - name: Extract ZIP if present
         run: |
-          unzip -o *.zip || true
+          for f in *.zip; do [ -f "$f" ] && unzip -o "$f"; done || true
           touch .env
 
-      - name: Set up JDK 21
+      - name: Setup Java 21
         uses: actions/setup-java@v4
         with:
           distribution: temurin
@@ -29,14 +30,22 @@ jobs:
       - name: Setup Gradle
         uses: gradle/actions/setup-gradle@v4
         with:
-          gradle-version: '9.3.1'
+          gradle-version: 8.11.1
+
+      - name: Generate Keystore & Wrapper
+        run: |
+          mkdir -p ~/.android
+          keytool -genkey -v -keystore ./debug.keystore -storepass android -alias androiddebugkey -keypass android -keyalg RSA -keysize 2048 -validity 10000 -dname "CN=Android Debug,O=Android,C=US"
+          cp ./debug.keystore ~/.android/debug.keystore || true
+          gradle wrapper --gradle-version 8.11.1
+          chmod +x gradlew
 
       - name: Build Debug APK
-        run: |
-          gradle assembleDebug --stacktrace --no-daemon -x test
+        run: ./gradlew assembleDebug --stacktrace --no-daemon -x test
 
       - name: Upload APK
         uses: actions/upload-artifact@v4
         with:
           name: SoundSync-Debug-APK
           path: app/build/outputs/apk/debug/*.apk
+
