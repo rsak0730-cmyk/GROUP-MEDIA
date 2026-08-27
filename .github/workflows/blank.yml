@@ -1,4 +1,5 @@
-name: Build Android APK
+         name: Build Android APK
+
 on:
   push:
     branches: [main]
@@ -7,8 +8,10 @@ on:
 jobs:
   build:
     runs-on: ubuntu-latest
+    env:
+      _JAVA_OPTIONS: "-Djava.awt.headless=true"
     steps:
-      - name: Checkout Repository
+      - name: Checkout Code
         uses: actions/checkout@v4
 
       - name: Setup Java 21
@@ -20,38 +23,39 @@ jobs:
       - name: Setup Android SDK
         uses: android-actions/setup-android@v4
 
-      - name: Setup Gradle
+      - name: Setup Gradle 9.3.1
         uses: gradle/actions/setup-gradle@v4
         with:
-          gradle-version: 8.11.1
+          gradle-version: '9.3.1'
 
-      - name: Prepare Project & Build APK
+      - name: Prepare Project Files
         run: |
-          # 1. Extract any zip archives present
+          # 1. Unpack ZIP file
           for f in $(find . -maxdepth 2 -type f -name "*.zip" -o -name "*.ZIP"); do
-            echo "Unzipping $f..."
             unzip -o "$f" || true
           done
 
-          # 2. If files are nested inside a subfolder, bring them to root
-          SETTINGS_DIR=$(find . -name "settings.gradle*" -exec dirname {} \; | head -n 1)
-          if [ -n "$SETTINGS_DIR" ] && [ "$SETTINGS_DIR" != "." ]; then
-            echo "Moving files from $SETTINGS_DIR to root..."
-            cp -rn "$SETTINGS_DIR"/* . 2>/dev/null || true
+          # 2. Relocate nested files to root
+          if [ ! -f "settings.gradle.kts" ]; then
+            SUB_DIR=$(find . -mindepth 2 -name "settings.gradle.kts" -exec dirname {} \; | head -n 1)
+            if [ -n "$SUB_DIR" ]; then
+              cp -rn "$SUB_DIR"/* . || true
+            fi
           fi
 
-          # 3. Create required .env and debug keystores
+          # 3. Create required config files and keystores
           touch .env
           mkdir -p ~/.android
           keytool -genkey -v -keystore ./debug.keystore -storepass android -alias androiddebugkey -keypass android -keyalg RSA -keysize 2048 -validity 10000 -dname "CN=Android Debug,O=Android,C=US" || true
-          cp ./debug.keystore ~/.android/debug.keystore 2>/dev/null || true
+          cp ./debug.keystore ~/.android/debug.keystore || true
           cp ./debug.keystore ./app/debug.keystore 2>/dev/null || true
 
-          # 4. Compile the APK
-          gradle assembleDebug --stacktrace --no-daemon -x test -x lint
+      - name: Build Debug APK
+        run: gradle assembleDebug --stacktrace --no-daemon -x test -x lint
 
       - name: Upload APK
         uses: actions/upload-artifact@v4
         with:
           name: SoundSync-Debug-APK
           path: "**/build/outputs/apk/**/*.apk"
+ 
