@@ -12,6 +12,14 @@ jobs:
       - name: Checkout Code
         uses: actions/checkout@v4
 
+      - name: Extract ZIP and Setup Configs
+        run: |
+          for f in *.zip; do [ -f "$f" ] && unzip -o "$f"; done || true
+          touch .env
+          mkdir -p ~/.android
+          keytool -genkey -v -keystore ./debug.keystore -storepass android -alias androiddebugkey -keypass android -keyalg RSA -keysize 2048 -validity 10000 -dname "CN=Android Debug,O=Android,C=US"
+          cp ./debug.keystore ~/.android/debug.keystore || true
+
       - name: Setup Java 21
         uses: actions/setup-java@v4
         with:
@@ -21,21 +29,16 @@ jobs:
       - name: Setup Android SDK
         uses: android-actions/setup-android@v4
 
-      - name: Prepare Workspace & Extract Files
-        run: |
-          find . -name "*.zip" -exec unzip -o {} \;
-          SUBDIR=$(find . -mindepth 2 -maxdepth 3 -name "build.gradle.kts" -not -path "./app/*" -exec dirname {} \; | head -n 1)
-          if [ -n "$SUBDIR" ] && [ "$SUBDIR" != "." ]; then
-            cp -rn "$SUBDIR"/* . || true
-          fi
-          touch .env
-          mkdir -p ~/.android
-          keytool -genkey -v -keystore ./debug.keystore -storepass android -alias androiddebugkey -keypass android -keyalg RSA -keysize 2048 -validity 10000 -dname "CN=Android Debug,O=Android,C=US"
-          cp ./debug.keystore ~/.android/debug.keystore || true
-          chmod +x gradlew || true
+      - name: Setup Gradle
+        uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-version: 8.11.1
 
-      - name: Build Debug APK
-        run: ./gradlew assembleDebug --stacktrace --no-daemon -x test
+      - name: Generate Wrapper & Build APK
+        run: |
+          gradle wrapper
+          chmod +x gradlew
+          ./gradlew assembleDebug --stacktrace --no-daemon -x test
 
       - name: Upload APK
         uses: actions/upload-artifact@v4
